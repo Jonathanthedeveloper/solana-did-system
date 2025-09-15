@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  HOLDER
+  ISSUER
+  VERIFIER
+}
+
+// User model - represents a user in the system
+model User {
+  id            String   @id @default(cuid())
+  username      String?  @unique
+  email         String?
+  firstName     String?
+  lastName      String?
+  bio           String?
+  avatar        String?
+  walletAddress String   @unique // Solana wallet address
+  did           String?  @unique // User's DID
+  role          UserRole @default(HOLDER)
+
+  // Institution information (for issuers and verifiers)
+  institutionName    String?
+  institutionType    String? // "university", "company", "government", "ngo", etc.
+  institutionWebsite String?
+  institutionAddress String?
+  position           String? // Job title/position
+  department         String?
+
+  // Preferences
+  emailNotifications    Boolean @default(true)
+  pushNotifications     Boolean @default(true)
+  autoAcceptFromTrusted Boolean @default(false)
+  dataMinimization      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  credentials         Credential[]
+  issuedCredentials   Credential[]         @relation("IssuerCredentials")
+  verifications       Verification[]
+  proofRequests       ProofRequest[]
+  proofResponses      ProofResponse[]
+  credentialTemplates CredentialTemplate[]
+
+  @@map("users")
+}
+
+// Credential model - represents verifiable credentials
+model Credential {
+  id               String           @id @default(cuid())
+  type             String // Credential type (e.g., "UniversityDegree", "EmploymentCredential")
+  issuerDid        String // DID of the issuer
+  subjectDid       String // DID of the subject (holder)
+  issuerId         String // User ID of the issuer
+  holderId         String // User ID of the holder
+  status           CredentialStatus @default(ACTIVE)
+  issuedAt         DateTime         @default(now())
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revocationReason String?
+
+  // Credential data
+  claims   Json // The actual credential claims
+  proof    Json? // Cryptographic proof
+  metadata Json? // Additional metadata
+
+  // Relations
+  issuer        User           @relation("IssuerCredentials", fields: [issuerId], references: [id])
+  holder        User           @relation(fields: [holderId], references: [id])
+  verifications Verification[]
+
+  @@map("credentials")
+}
+
+// Verification model - represents verification attempts
+model Verification {
+  id            String             @id @default(cuid())
+  credentialId  String
+  verifierId    String // User ID of the verifier
+  status        VerificationStatus @default(PENDING)
+  verifiedAt    DateTime?
+  failureReason String?
+
+  // Relations
+  credential Credential @relation(fields: [credentialId], references: [id])
+  verifier   User       @relation(fields: [verifierId], references: [id])
+
+  @@map("verifications")
+}
+
+// ProofRequest model - represents proof requests from verifiers
+model ProofRequest {
+  id          String             @id @default(cuid())
+  title       String
+  description String?
+  verifierId  String // User ID of the verifier making the request
+  status      ProofRequestStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now())
+  expiresAt   DateTime?
+
+  // What credentials are being requested (stored as JSON since SQLite doesn't support arrays)
+  requestedTypesJson String // JSON array of credential types requested
+  requirements       Json? // Additional requirements
+
+  // Target holders for this proof request (null means broadcast to all holders)
+  targetHoldersJson String? // JSON array of holder user IDs (null = broadcast)
+
+  // Relations
+  verifier  User            @relation(fields: [verifierId], references: [id])
+  responses ProofResponse[]
+
+  @@map("proof_requests")
+}
+
+// ProofResponse model - responses to proof requests
+model ProofResponse {
+  id             String              @id @default(cuid())
+  proofRequestId String
+  holderId       String // User ID of the holder responding
+  status         ProofResponseStatus @default(PENDING)
+  submittedAt    DateTime            @default(now())
+
+  // The proof data (stored as JSON since SQLite doesn't support arrays)
+  presentedCredentialsJson String // JSON array of credential IDs being presented
+  proofData                Json? // The actual proof
+
+  // Relations
+  proofRequest ProofRequest @relation(fields: [proofRequestId], references: [id])
+  holder       User         @relation(fields: [holderId], references: [id])
+
+  @@unique([proofRequestId, holderId])
+  @@map("proof_responses")
+}
+
+// Enums
+enum CredentialStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  EXPIRED
+}
+
+enum ProofRequestStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  COMPLETED
+}
+
+enum ProofResponseStatus {
+  PENDING
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+// CredentialTemplate model - represents credential templates for issuers
+model CredentialTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String?
+  schema      Json // JSON schema for the credential fields
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("credential_templates")
+}
