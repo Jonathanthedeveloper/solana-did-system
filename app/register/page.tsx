@@ -13,10 +13,11 @@ import { Shield, Key, FileText, Eye } from "lucide-react";
 import { useEffect } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRouter } from "next/navigation";
-const { user, status } = useAuth();
-const router = useRouter();
 
 export default function RegisterPage() {
+  const { user, status } = useAuth();
+  const router = useRouter();
+
   useEffect(() => {
     if (user && status === "authenticated") {
       router.replace("/dashboard");
