@@ -19,7 +19,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
   return (
     <ConnectionProvider endpoint={connection.rpcEndpoint}>
-      <SolanaWalletProvider wallets={wallets} autoConnect={true}>
+      <SolanaWalletProvider wallets={wallets} autoConnect={false}>
         {children}
       </SolanaWalletProvider>
     </ConnectionProvider>
