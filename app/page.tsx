@@ -52,7 +52,7 @@ export default function HomePage() {
             <Key className="w-8 h-8" />
           </div>
           <h1 className="text-5xl font-bold text-foreground mb-6">
-            Solana DID System
+            Blockchain Identity Management System
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
             A secure, decentralized identity management system built on Solana

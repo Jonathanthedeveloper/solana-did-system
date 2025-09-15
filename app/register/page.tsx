@@ -10,8 +10,19 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Key, FileText, Eye } from "lucide-react";
+import { useEffect } from "react";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRouter } from "next/navigation";
+const { user, status } = useAuth();
+const router = useRouter();
 
 export default function RegisterPage() {
+  useEffect(() => {
+    if (user && status === "authenticated") {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-6xl">
