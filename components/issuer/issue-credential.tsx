@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -39,8 +38,6 @@ import { issueCredentialSchema } from "@/lib/validation/schemas";
 
 export function IssueCredential() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [recipientDID, setRecipientDID] = useState("");
-  const [credentialData, setCredentialData] = useState<Record<string, any>>({});
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const searchParams = useSearchParams();
   const { data: templates } = useCredentialTemplates();
@@ -56,7 +53,7 @@ export function IssueCredential() {
 
   const form = useValidatedForm({
     schema: issueCredentialSchema,
-    onSubmit: async () => {
+    onSubmit: async (data) => {
       if (!selectedTemplate) {
         toast({
           title: "Missing Template",
@@ -67,9 +64,9 @@ export function IssueCredential() {
       }
 
       issueCredentialMutation.mutate({
-        subjectDid: recipientDID,
-        type: selectedTemplateData?.name || "Custom Credential",
-        claims: credentialData,
+        subjectDid: data.subjectDid,
+        type: data.type,
+        claims: data.claims,
       });
     },
     onError: (error) => {
@@ -82,36 +79,37 @@ export function IssueCredential() {
     },
   });
 
-  const validateDID = (did: string) => {
-    // Basic DID validation - should start with "did:" and have at least 3 parts
-    const parts = did.split(":");
-    return parts.length >= 3 && parts[0] === "did";
-  };
-
   const selectedTemplateData = templates?.find(
     (t: any) => t.id === selectedTemplate
   );
+
+  // Keep the credential `type` in the form state in sync with the selected template
+  useEffect(() => {
+    if (!form) return;
+    if (selectedTemplateData?.name) {
+      form.setValue("type", selectedTemplateData.name);
+    } else if (selectedTemplate) {
+      form.setValue("type", "Custom Credential");
+    }
+  }, [selectedTemplateData, selectedTemplate, form]);
 
   const handleIssueCredential = () => {
     form.submitForm();
   };
 
-  const handleFieldChange = (key: string, value: any) => {
-    setCredentialData((prev) => ({ ...prev, [key]: value }));
-  };
-
   const generatePreview = () => {
+    const formData = form.watch();
     return {
       "@context": ["https://www.w3.org/2018/credentials/v1"],
       type: [
         "VerifiableCredential",
-        selectedTemplateData?.name.replace(/\s+/g, "") || "",
+        formData.type?.replace(/\s+/g, "") || "",
       ],
       issuer: "did:sol:issuer:3FHneW46xGXgs5mUiveU4sbTyGBzmstUspZxkoPG9aNp",
       issuanceDate: new Date().toISOString(),
       credentialSubject: {
-        id: recipientDID,
-        ...credentialData,
+        id: formData.subjectDid,
+        ...formData.claims,
       },
       proof: {
         type: "Ed25519Signature2020",
@@ -147,7 +145,7 @@ export function IssueCredential() {
             onClick={handleIssueCredential}
             disabled={
               !selectedTemplate ||
-              !recipientDID ||
+              !form.watch("subjectDid") ||
               issueCredentialMutation.isPending
             }
           >
@@ -237,15 +235,20 @@ export function IssueCredential() {
                   <Input
                     id="recipient-did"
                     placeholder="did:sol:..."
-                    value={recipientDID}
-                    onChange={(e) => setRecipientDID(e.target.value)}
+                    {...form.register("subjectDid")}
                   />
-                  {recipientDID && !validateDID(recipientDID) && (
+                  {form.formState.errors.subjectDid && (
                     <p className="text-sm text-destructive mt-1">
-                      Please provide a valid DID (e.g., did:sol:...)
+                      {form.formState.errors.subjectDid.message}
                     </p>
                   )}
                 </div>
+                {/* Hidden type field - gets value from selected template */}
+                <input
+                  type="hidden"
+                  {...form.register("type")}
+                  value={selectedTemplateData?.name || "Custom Credential"}
+                />
               </CardContent>
             </Card>
 
@@ -274,28 +277,21 @@ export function IssueCredential() {
                       {field.type === "string" && (
                         <Input
                           id={key}
-                          value={credentialData[key] || ""}
-                          onChange={(e) =>
-                            handleFieldChange(key, e.target.value)
-                          }
+                          {...form.register(`claims.${key}`)}
                         />
                       )}
                       {field.type === "number" && (
                         <Input
                           id={key}
                           type="number"
-                          value={credentialData[key] || ""}
-                          onChange={(e) =>
-                            handleFieldChange(key, parseFloat(e.target.value))
-                          }
+                          {...form.register(`claims.${key}`, { valueAsNumber: true })}
                         />
                       )}
                       {field.type === "boolean" && (
                         <Select
-                          value={credentialData[key]?.toString() || ""}
-                          onValueChange={(value) =>
-                            handleFieldChange(key, value === "true")
-                          }
+                          {...form.register(`claims.${key}`, { 
+                            setValueAs: (value) => value === "true" 
+                          })}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select..." />
@@ -308,10 +304,7 @@ export function IssueCredential() {
                       )}
                       {field.enum && (
                         <Select
-                          value={credentialData[key] || ""}
-                          onValueChange={(value) =>
-                            handleFieldChange(key, value)
-                          }
+                          {...form.register(`claims.${key}`)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select..." />
@@ -340,27 +333,7 @@ export function IssueCredential() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="expiry-date">Expiry Date (Optional)</Label>
-                  <Input
-                    id="expiry-date"
-                    type="date"
-                    value={credentialData["expiryDate"] || ""}
-                    onChange={(e) =>
-                      handleFieldChange("expiryDate", e.target.value)
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notes">Internal Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Add any internal notes about this credential..."
-                    value={credentialData["notes"] || ""}
-                    onChange={(e) => handleFieldChange("notes", e.target.value)}
-                    rows={2}
-                  />
-                </div>
+                {/* Expiry date field removed - API doesn't support it yet */}
               </CardContent>
             </Card>
 

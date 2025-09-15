@@ -190,18 +190,6 @@ export function HolderProfile() {
 
   const verificationCount = profile?.verifications?.length || 0;
 
-  // Debug logging to help identify the issue
-  console.log("Profile data:", {
-    userRoles,
-    isIssuer,
-    isVerifier,
-    credentialsCount: profile?.credentials?.length || 0,
-    issuedCredentialsCount: issuedCredentials.length || 0,
-    verificationsCount: profile?.verifications?.length || 0,
-    finalCredentialCount: credentialCount,
-    finalVerificationCount: verificationCount,
-  });
-
   const securityMetrics = {
     didScore: 85,
     credentialCount,

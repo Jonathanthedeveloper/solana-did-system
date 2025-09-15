@@ -50,9 +50,6 @@ export async function POST(req: Request) {
       return user;
     });
 
-    // Log successful authentication
-    console.log(`User authenticated: ${user.id} (${user.role})`);
-
     return NextResponse.json({
       user: {
         id: user.id,
