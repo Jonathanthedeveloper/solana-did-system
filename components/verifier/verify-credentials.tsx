@@ -28,7 +28,11 @@ import {
   ExternalLink,
   Loader2,
 } from "lucide-react";
-import { useVerifyCredential } from "@/features/credentials";
+import {
+  useVerifyCredential,
+  useSaveVerification,
+  useImportCredential,
+} from "@/features/credentials";
 import { useToast } from "@/hooks/use-toast";
 
 export function VerifyCredentials() {
@@ -40,6 +44,8 @@ export function VerifyCredentials() {
   const [verificationResult, setVerificationResult] = useState<any>(null);
 
   const verifyCredentialMutation = useVerifyCredential();
+  const saveVerificationMutation = useSaveVerification();
+  const importCredentialMutation = useImportCredential();
   const { toast } = useToast();
 
   const handleVerifyCredential = async () => {
@@ -135,6 +141,103 @@ export function VerifyCredentials() {
     setVerificationResult(null);
     setCredentialData("");
     setCredentialType("");
+  };
+
+  const handleSaveReport = async () => {
+    if (!verificationResult) return;
+    try {
+      // Ensure the credential is persisted in our DB before saving the verification
+      let credentialToUse = verificationResult.credential;
+
+      if (!credentialToUse?.id) {
+        // Import the credential into the system to obtain an internal id
+        const imported = await importCredentialMutation.mutateAsync(
+          credentialToUse
+        );
+        credentialToUse = imported;
+      }
+
+      await saveVerificationMutation.mutateAsync({
+        credential: credentialToUse,
+        verification: verificationResult.verification,
+        trustScore: verificationResult.trustScore,
+        verifiedAt: verificationResult.verifiedAt,
+      });
+
+      toast({ title: "Saved", description: "Verification report saved." });
+    } catch (err: any) {
+      toast({
+        title: "Save failed",
+        description: err?.message || "Failed to save report.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportJSON = () => {
+    if (!verificationResult) return;
+    const dataStr = JSON.stringify(verificationResult, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `verification-${
+      verificationResult.credential?.id || Date.now()
+    }.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleShareResult = async () => {
+    if (!verificationResult) return;
+    const text = `Verification result for ${
+      verificationResult.credential?.type || "credential"
+    } - Trust Score: ${verificationResult.trustScore}%`;
+    const payload = {
+      text,
+      data: verificationResult,
+    };
+
+    try {
+      if ((navigator as any).share) {
+        await (navigator as any).share({
+          title: "Verification Result",
+          text: text,
+        });
+        toast({
+          title: "Shared",
+          description: "Result shared via native share.",
+        });
+      } else {
+        await navigator.clipboard.writeText(JSON.stringify(payload));
+        toast({ title: "Copied", description: "Result copied to clipboard." });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Share failed",
+        description: err?.message || "Failed to share result.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAcceptCredential = async () => {
+    if (!verificationResult?.credential) return;
+    try {
+      await importCredentialMutation.mutateAsync(verificationResult.credential);
+      toast({
+        title: "Accepted",
+        description: "Credential imported into system.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Accept failed",
+        description: err?.message || "Failed to accept credential.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -566,10 +669,29 @@ export function VerifyCredentials() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex gap-2">
-              <Button variant="outline">Save Report</Button>
-              <Button variant="outline">Export JSON</Button>
-              <Button variant="outline">Share Result</Button>
-              <Button>Accept Credential</Button>
+              <Button
+                variant="outline"
+                onClick={handleSaveReport}
+                disabled={saveVerificationMutation.isPending}
+              >
+                {saveVerificationMutation.isPending
+                  ? "Saving..."
+                  : "Save Report"}
+              </Button>
+              <Button variant="outline" onClick={handleExportJSON}>
+                Export JSON
+              </Button>
+              <Button variant="outline" onClick={handleShareResult}>
+                Share Result
+              </Button>
+              <Button
+                onClick={handleAcceptCredential}
+                disabled={importCredentialMutation.isPending}
+              >
+                {importCredentialMutation.isPending
+                  ? "Accepting..."
+                  : "Accept Credential"}
+              </Button>
             </CardContent>
           </Card>
         </div>

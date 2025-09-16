@@ -91,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       queryClient.clear();
       queryClient.resetQueries();
       router.replace("/");
+      console.log("Cleared queries due to unauthenticated state");
     }
   }, [wallet.connected, wallet.publicKey, queryClient]);
 

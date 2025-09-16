@@ -44,6 +44,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { useActivityHistory } from "@/features/activity-history";
+import { LoadingSkeleton } from "../loading-skeleton";
 
 export function HistoryDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,7 +52,7 @@ export function HistoryDashboard() {
   const [filterPeriod, setFilterPeriod] = useState("all");
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
   const [lastViewed, setLastViewed] = useState(new Date());
-  const { data: activities = [], isLoading, error } = useActivityHistory();
+  const { data: activities = [], isPending, error } = useActivityHistory();
 
   // Mock real-time activity updates
   const recentActivities = activities.filter(
@@ -256,15 +257,8 @@ export function HistoryDashboard() {
     setLastViewed(new Date());
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-center py-8">
-          <Activity className="w-8 h-8 animate-spin mr-2" />
-          <span>Loading activity history...</span>
-        </div>
-      </div>
-    );
+  if (isPending) {
+    return <LoadingSkeleton />;
   }
 
   if (error) {

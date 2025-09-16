@@ -95,3 +95,16 @@ export function useVerifyCredential() {
     },
   });
 }
+
+export function useSaveVerification() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: any) => {
+      const response = await api.post("verifications", payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["verifications"] });
+    },
+  });
+}

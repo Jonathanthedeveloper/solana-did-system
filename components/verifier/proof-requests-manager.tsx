@@ -43,7 +43,6 @@ import {
 } from "@/features/proof-requests";
 import { useCredentialTemplates } from "@/features/templates";
 import { SelectPills } from "../ui/select-pills";
-import { id } from "date-fns/locale";
 
 export function ProofRequestsManager() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
@@ -56,10 +55,9 @@ export function ProofRequestsManager() {
     selectedHolders: [] as string[],
   });
   const { data: proofRequests } = useProofRequests();
-  const { data: holders, isLoading: holdersLoading } = useHolders();
+  const { data: holders } = useHolders();
   const createProofRequestMutation = useCreateProofRequest();
   const updateResponseMutation = useUpdateProofResponse();
-  const [holderFilter, setHolderFilter] = useState("");
 
   const holdersData = useMemo(
     () =>

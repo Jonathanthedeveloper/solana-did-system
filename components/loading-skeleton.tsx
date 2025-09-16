@@ -203,6 +203,10 @@ export function LoadingSkeleton({
       return <DashboardCardSkeleton />;
     case "page":
     default:
-      return <PageSkeleton />;
+      return (
+        <div className="flex items-center justify-center h-screen">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
   }
 }

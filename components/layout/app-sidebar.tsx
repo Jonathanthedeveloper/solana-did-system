@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "../providers/auth-provider";
 import { UserRole } from "@/lib/generated/prisma/enums";
 
@@ -111,7 +111,6 @@ const pages = [
 export function AppSidebar() {
   const { disconnect } = useWallet();
   const pathname = usePathname();
-  const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -120,13 +119,10 @@ export function AppSidebar() {
   });
 
   const handleDisconnect = async () => {
-    try {
-      // Clear all cached queries to prevent stale data
-      await queryClient.clear();
-      await disconnect();
-    } finally {
-      router.push("/");
-    }
+    await disconnect();
+    queryClient.clear();
+    queryClient.resetQueries();
+    2;
   };
 
   return (
