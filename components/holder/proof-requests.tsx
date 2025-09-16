@@ -34,7 +34,6 @@ import {
   useAvailableProofRequests,
   useProofResponses,
   useRespondToProofRequest,
-  useDeclineProofRequest,
 } from "@/features/proof-requests";
 import { useCredentials } from "@/features/credentials";
 import { useToast } from "@/hooks/use-toast";
@@ -50,7 +49,6 @@ export function ProofRequests() {
     useProofResponses();
   const { data: credentials } = useCredentials();
   const respondMutation = useRespondToProofRequest();
-  const declineMutation = useDeclineProofRequest();
 
   const pendingRequests = availableRequests || [];
   const respondedRequests = proofResponses || [];
@@ -97,31 +95,9 @@ export function ProofRequests() {
     );
   };
 
-  const handleDeclineRequest = (request?: any) => {
-    const requestToDecline = request || selectedRequest;
-    if (!requestToDecline) return;
-
-    declineMutation.mutate(
-      { proofRequestId: requestToDecline.id },
-      {
-        onSuccess: () => {
-          toast({
-            title: "Request Declined",
-            description: "You have declined this proof request.",
-          });
-          setSelectedCredentials([]);
-          setSelectedRequest(null);
-        },
-        onError: (error: any) => {
-          toast({
-            title: "Decline Failed",
-            description: error.message || "Failed to decline proof request.",
-            variant: "destructive",
-          });
-        },
-      }
-    );
-  };
+  // Holders cannot decline/approve requests from this UI. Decline/approve
+  // operations are performed by the holder only by not responding. The
+  // verifier manages request lifecycle. We intentionally omit decline logic.
 
   return (
     <div className="p-6 space-y-6">
@@ -339,37 +315,12 @@ export function ProofRequests() {
                                       )}
                                       Send Proof
                                     </Button>
-                                    <Button
-                                      variant="outline"
-                                      className="gap-2 bg-transparent"
-                                      onClick={handleDeclineRequest}
-                                      disabled={declineMutation.isPending}
-                                    >
-                                      {declineMutation.isPending ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <X className="w-4 h-4" />
-                                      )}
-                                      Decline
-                                    </Button>
                                   </div>
                                 </div>
                               )}
                             </DialogContent>
                           </Dialog>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive bg-transparent"
-                            onClick={() => handleDeclineRequest(request)}
-                            disabled={declineMutation.isPending}
-                          >
-                            {declineMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <X className="w-4 h-4" />
-                            )}
-                          </Button>
+                          {/* Holders cannot decline requests from this UI; the verifier controls lifecycle */}
                         </div>
                       </div>
                     </CardHeader>
@@ -438,18 +389,25 @@ export function ProofRequests() {
                         {response.proofRequest.title}
                         <Badge variant="default">Responded</Badge>
                       </CardTitle>
-                      <CardDescription>
-                        {response.proofRequest.verifier.institutionName ||
-                          `${response.proofRequest.verifier.firstName || ""} ${
-                            response.proofRequest.verifier.lastName || ""
+                      {(() => {
+                        const verifier = response.proofRequest?.verifier ?? {};
+                        const name =
+                          verifier.institutionName ||
+                          `${verifier.firstName || ""} ${
+                            verifier.lastName || ""
                           }`.trim() ||
-                          response.proofRequest.verifier.walletAddress?.slice(
-                            0,
-                            8
-                          ) + "..."}{" "}
-                        • Responded on{" "}
-                        {new Date(response.submittedAt).toLocaleDateString()}
-                      </CardDescription>
+                          (verifier.walletAddress
+                            ? verifier.walletAddress.slice(0, 8) + "..."
+                            : "Unknown");
+                        return (
+                          <CardDescription>
+                            {name} • Responded on{" "}
+                            {new Date(
+                              response.submittedAt
+                            ).toLocaleDateString()}
+                          </CardDescription>
+                        );
+                      })()}
                     </div>
                     <Button variant="outline" size="sm">
                       <Eye className="w-4 h-4 mr-1" />

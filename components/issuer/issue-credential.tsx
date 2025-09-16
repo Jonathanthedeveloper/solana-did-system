@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
   CardContent,
@@ -12,13 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -30,105 +25,132 @@ import {
   CheckCircle,
   Loader2,
 } from "lucide-react";
+
 import { useCredentialTemplates } from "@/features/templates";
 import { useIssueCredential } from "@/features/credentials";
-import { useToast } from "@/hooks/use-toast";
-import { useValidatedForm } from "@/hooks/use-validated-form";
 import { issueCredentialSchema } from "@/lib/validation/schemas";
+import { DynamicField } from "../ui/dynamic-field";
+import { toast } from "sonner";
 
 export function IssueCredential() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+
   const searchParams = useSearchParams();
-  const { data: templates } = useCredentialTemplates();
+  const { data: templates = [] } = useCredentialTemplates();
   const issueCredentialMutation = useIssueCredential();
-  const { toast } = useToast();
 
-  useEffect(() => {
-    const templateParam = searchParams.get("template");
-    if (templateParam) {
-      setSelectedTemplate(templateParam);
-    }
-  }, [searchParams]);
-
-  const form = useValidatedForm({
-    schema: issueCredentialSchema,
-    onSubmit: async (data) => {
-      if (!selectedTemplate) {
-        toast({
-          title: "Missing Template",
-          description: "Please select a credential template.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      issueCredentialMutation.mutate({
-        subjectDid: data.subjectDid,
-        type: data.type,
-        claims: data.claims,
-      });
-    },
-    onError: (error) => {
-      console.error("Form submission error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to issue credential. Please try again.",
-        variant: "destructive",
-      });
+  const form = useForm({
+    resolver: zodResolver(issueCredentialSchema),
+    defaultValues: {
+      subjectDid: "",
+      type: "",
+      claims: {},
     },
   });
 
-  const selectedTemplateData = templates?.find(
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    getValues,
+    formState,
+    control,
+  } = form;
+
+  useEffect(() => {
+    const templateParam = searchParams.get("template");
+    if (templateParam) setSelectedTemplate(templateParam);
+  }, [searchParams]);
+
+  const selectedTemplateData = templates.find(
     (t: any) => t.id === selectedTemplate
   );
 
-  // Keep the credential `type` in the form state in sync with the selected template
   useEffect(() => {
-    if (!form) return;
-    if (selectedTemplateData?.name) {
-      form.setValue("type", selectedTemplateData.name);
-    } else if (selectedTemplate) {
-      form.setValue("type", "Custom Credential");
-    }
-  }, [selectedTemplateData, selectedTemplate, form]);
+    const type =
+      selectedTemplateData?.name || (selectedTemplate && "Custom Credential");
+    if (type) setValue("type", type);
+    if (!getValues().claims) setValue("claims", {} as any);
+  }, [selectedTemplate, selectedTemplateData]);
 
-  const handleIssueCredential = () => {
-    form.submitForm();
+  const onSubmit = (data: any) => {
+    if (!selectedTemplate) {
+      toast.info("Missing Template", {
+        description: "Please select a credential template.",
+      });
+      return;
+    }
+
+    issueCredentialMutation.mutate(
+      {
+        subjectDid: data.subjectDid.trim(),
+        type: data.type,
+        claims: data.claims,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Credential Issued", {
+            description: "The credential has been successfully issued.",
+          });
+          form.reset();
+          setSelectedTemplate("");
+        },
+        onError: (error: any) => {
+          toast.error("Issuance Failed", {
+            description:
+              error?.message || "An error occurred during credential issuance.",
+          });
+        },
+      }
+    );
   };
 
-  const generatePreview = () => {
-    const formData = form.watch();
+  const handleIssueCredential = () => {
+    const values = getValues();
+    if (!values.type) {
+      setValue("type", selectedTemplateData?.name || "Custom Credential");
+    }
+    if (!values.claims) {
+      setValue("claims", {} as any);
+    }
+    if (values.subjectDid) {
+      setValue("subjectDid", values.subjectDid.trim());
+    }
+    handleSubmit(onSubmit)();
+  };
+
+  const preview = useMemo(() => {
+    const values = getValues();
+    const issuerDid =
+      selectedTemplateData?.issuer ?? "did:solana:exampleIssuer";
+
     return {
-      "@context": ["https://www.w3.org/2018/credentials/v1"],
-      type: [
-        "VerifiableCredential",
-        formData.type?.replace(/\s+/g, "") || "",
-      ],
-      issuer: "did:sol:issuer:3FHneW46xGXgs5mUiveU4sbTyGBzmstUspZxkoPG9aNp",
-      issuanceDate: new Date().toISOString(),
+      id: `vc-${Date.now()}`,
+      title: values.type || selectedTemplateData?.name || "Credential",
+      issuer: issuerDid,
+      type: values.type || selectedTemplateData?.name || "Credential",
+      status: "DRAFT",
+      issuedDate: new Date().toISOString(),
       credentialSubject: {
-        id: formData.subjectDid,
-        ...formData.claims,
+        id: values.subjectDid,
+        ...values.claims,
       },
       proof: {
         type: "Ed25519Signature2020",
         created: new Date().toISOString(),
-        verificationMethod:
-          "did:sol:issuer:3FHneW46xGXgs5mUiveU4sbTyGBzmstUspZxkoPG9aNp#key-1",
-        proofPurpose: "assertionMethod",
+        verificationMethod: `${issuerDid}#key-1`,
       },
     };
-  };
+  }, [watch(["subjectDid", "claims", "type"]), selectedTemplateData]);
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            Issue Credential
-          </h1>
+          <h1 className="text-3xl font-bold">Issue Credential</h1>
           <p className="text-muted-foreground">
             Create and issue verifiable credentials to holders
           </p>
@@ -145,7 +167,7 @@ export function IssueCredential() {
             onClick={handleIssueCredential}
             disabled={
               !selectedTemplate ||
-              !form.watch("subjectDid") ||
+              !watch("subjectDid") ||
               issueCredentialMutation.isPending
             }
           >
@@ -162,7 +184,7 @@ export function IssueCredential() {
       </div>
 
       {isPreviewMode ? (
-        /* Preview Mode */
+        // Preview Mode
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -170,17 +192,17 @@ export function IssueCredential() {
               Credential Preview
             </CardTitle>
             <CardDescription>
-              Preview of the credential that will be issued
+              Preview of the credential to be issued
             </CardDescription>
           </CardHeader>
           <CardContent>
             <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto max-h-96">
-              {JSON.stringify(generatePreview(), null, 2)}
+              {JSON.stringify(preview, null, 2)}
             </pre>
           </CardContent>
         </Card>
       ) : (
-        /* Edit Mode */
+        // Edit Mode
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Template Selection */}
           <Card>
@@ -192,7 +214,7 @@ export function IssueCredential() {
               <CardDescription>Choose a credential template</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {(templates || []).map((template: any) => (
+              {templates.map((template: any) => (
                 <div
                   key={template.id}
                   className={`p-3 border rounded-lg cursor-pointer transition-all ${
@@ -218,7 +240,7 @@ export function IssueCredential() {
 
           {/* Credential Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Recipient Information */}
+            {/* Recipient */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -235,20 +257,15 @@ export function IssueCredential() {
                   <Input
                     id="recipient-did"
                     placeholder="did:sol:..."
-                    {...form.register("subjectDid")}
+                    {...register("subjectDid")}
                   />
-                  {form.formState.errors.subjectDid && (
+                  {formState.errors.subjectDid && (
                     <p className="text-sm text-destructive mt-1">
-                      {form.formState.errors.subjectDid.message}
+                      {formState.errors.subjectDid.message as string}
                     </p>
                   )}
                 </div>
-                {/* Hidden type field - gets value from selected template */}
-                <input
-                  type="hidden"
-                  {...form.register("type")}
-                  value={selectedTemplateData?.name || "Custom Credential"}
-                />
+                <input type="hidden" {...register("type")} />
               </CardContent>
             </Card>
 
@@ -268,81 +285,29 @@ export function IssueCredential() {
                   {Object.entries(
                     selectedTemplateData.schema.properties || {}
                   ).map(([key, field]: [string, any]) => (
-                    <div key={key}>
-                      <Label htmlFor={key}>
-                        {field.title || key}{" "}
-                        {selectedTemplateData.schema.required?.includes(key) &&
-                          "*"}
-                      </Label>
-                      {field.type === "string" && (
-                        <Input
-                          id={key}
-                          {...form.register(`claims.${key}`)}
-                        />
+                    <DynamicField
+                      key={key}
+                      name={`claims.${key}`}
+                      fieldDef={field}
+                      required={selectedTemplateData.schema.required?.includes(
+                        key
                       )}
-                      {field.type === "number" && (
-                        <Input
-                          id={key}
-                          type="number"
-                          {...form.register(`claims.${key}`, { valueAsNumber: true })}
-                        />
-                      )}
-                      {field.type === "boolean" && (
-                        <Select
-                          {...form.register(`claims.${key}`, { 
-                            setValueAs: (value) => value === "true" 
-                          })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="true">Yes</SelectItem>
-                            <SelectItem value="false">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {field.enum && (
-                        <Select
-                          {...form.register(`claims.${key}`)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {field.enum.map((option: string) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
+                      control={control}
+                      register={register}
+                      watch={watch}
+                      setValue={setValue}
+                    />
                   ))}
                 </CardContent>
               </Card>
             )}
-
-            {/* Issue Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Issuance Settings</CardTitle>
-                <CardDescription>
-                  Configure credential issuance options
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Expiry date field removed - API doesn't support it yet */}
-              </CardContent>
-            </Card>
 
             {!selectedTemplate && (
               <Alert>
                 <FileText className="h-4 w-4" />
                 <AlertDescription>
                   Please select a credential template to begin filling out the
-                  credential information.
+                  form.
                 </AlertDescription>
               </Alert>
             )}

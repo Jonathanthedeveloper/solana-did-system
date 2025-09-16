@@ -41,13 +41,12 @@ import {
 } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useCredentials, useImportCredential } from "@/features/credentials";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export function CredentialStorage() {
   const { publicKey } = useWallet();
   const { data: credentials, isLoading, error } = useCredentials();
   const importMutation = useImportCredential();
-  const { toast } = useToast();
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importJson, setImportJson] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,6 +85,14 @@ export function CredentialStorage() {
     }
   };
 
+  // Helper to format and safely display issuer text
+  const formatIssuer = (issuer: any) => {
+    if (!issuer) return "";
+    // If issuer is an object with did, prefer that
+    const raw = issuer?.did ?? issuer.issuerDid ?? issuer ?? String(issuer);
+    return raw;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "verified":
@@ -119,8 +126,7 @@ export function CredentialStorage() {
     try {
       if (navigator.share && navigator.canShare?.(shareData)) {
         await navigator.share(shareData);
-        toast({
-          title: "Credential shared successfully",
+        toast.success("Credential shared successfully", {
           description: "The credential has been shared.",
         });
       } else {
@@ -128,8 +134,7 @@ export function CredentialStorage() {
         await navigator.clipboard.writeText(
           JSON.stringify(credentialData, null, 2)
         );
-        toast({
-          title: "Credential copied to clipboard",
+        toast.success("Credential copied to clipboard", {
           description: "Credential data has been copied to your clipboard.",
         });
       }
@@ -140,17 +145,14 @@ export function CredentialStorage() {
         await navigator.clipboard.writeText(
           JSON.stringify(credentialData, null, 2)
         );
-        toast({
-          title: "Credential copied to clipboard",
+        toast.success("Credential copied to clipboard", {
           description:
             "Sharing failed, but credential data has been copied to your clipboard.",
         });
       } catch (clipboardError) {
         console.error("Failed to copy to clipboard:", clipboardError);
-        toast({
-          title: "Sharing failed",
+        toast.error("Sharing failed", {
           description: "Unable to share or copy credential data.",
-          variant: "destructive",
         });
       }
     }
@@ -187,16 +189,13 @@ export function CredentialStorage() {
       linkElement.setAttribute("download", exportFileDefaultName);
       linkElement.click();
 
-      toast({
-        title: "Credential downloaded",
-        description: `Credential has been downloaded as ${exportFileDefaultName}`,
-      });
+      toast.success(
+        `Credential has been downloaded as ${exportFileDefaultName}`
+      );
     } catch (error) {
       console.error("Error downloading credential:", error);
-      toast({
-        title: "Download failed",
+      toast.error("Download failed", {
         description: "Unable to download the credential.",
-        variant: "destructive",
       });
     }
   };
@@ -252,7 +251,8 @@ export function CredentialStorage() {
                       setIsImportOpen(false);
                     } catch (err) {
                       // TODO: show toast
-                      console.error("Invalid credential JSON", err);
+                      toast.error("Invalid credential JSON");
+                      console.error("Failed to import credential:", err);
                     }
                   }}
                 >
@@ -308,9 +308,12 @@ export function CredentialStorage() {
                     <CardTitle className="text-lg">{credential.type}</CardTitle>
                     <CardDescription>
                       Issuer:{" "}
-                      {credential.issuer?.did ??
-                        credential.issuerDid ??
-                        credential.issuer}
+                      <span
+                        className="inline-block max-w-[16rem] truncate align-middle"
+                        title={formatIssuer(credential.issuer)}
+                      >
+                        {formatIssuer(credential.issuer)}
+                      </span>
                     </CardDescription>
                   </div>
                 </div>
@@ -359,7 +362,13 @@ export function CredentialStorage() {
                     <DialogHeader className="flex-shrink-0">
                       <DialogTitle>{selectedCredential?.title}</DialogTitle>
                       <DialogDescription>
-                        Issued by {selectedCredential?.issuer}
+                        Issued by{" "}
+                        <span
+                          title={formatIssuer(selectedCredential?.issuer)}
+                          className="inline-block max-w-[40rem] truncate"
+                        >
+                          {formatIssuer(selectedCredential?.issuer)}
+                        </span>
                       </DialogDescription>
                     </DialogHeader>
                     {selectedCredential && (

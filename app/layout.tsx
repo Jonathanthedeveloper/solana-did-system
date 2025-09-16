@@ -10,7 +10,7 @@ import "./globals.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export const metadata: Metadata = {
-  title: "Solana DID - Decentralized Identity Management",
+  title: "Decentralized Identity Management",
   description:
     "Secure decentralized identity management system built on Solana blockchain",
 };

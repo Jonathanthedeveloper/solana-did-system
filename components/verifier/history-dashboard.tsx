@@ -38,7 +38,6 @@ import {
   AlertTriangle,
   Clock,
   Activity,
-  BarChart3,
   FileCheck,
   FileX,
   Send,
@@ -320,14 +319,6 @@ export function HistoryDashboard() {
           >
             <Download className="w-4 h-4" />
             Export JSON
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => exportActivities("json")}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Analytics
           </Button>
         </div>
       </div>

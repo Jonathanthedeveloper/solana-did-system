@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -41,6 +41,9 @@ import {
   useUpdateProofResponse,
   useHolders,
 } from "@/features/proof-requests";
+import { useCredentialTemplates } from "@/features/templates";
+import { SelectPills } from "../ui/select-pills";
+import { id } from "date-fns/locale";
 
 export function ProofRequestsManager() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
@@ -56,13 +59,37 @@ export function ProofRequestsManager() {
   const { data: holders, isLoading: holdersLoading } = useHolders();
   const createProofRequestMutation = useCreateProofRequest();
   const updateResponseMutation = useUpdateProofResponse();
+  const [holderFilter, setHolderFilter] = useState("");
 
-  const availableClaims = [
-    "UniversityDegree",
-    "ProfessionalCertificate",
-    "AgeVerification",
-    "EmploymentVerification",
-  ];
+  const holdersData = useMemo(
+    () =>
+      holders?.map((holder) => {
+        return {
+          id: holder.id,
+          name:
+            `${holder.firstName || ""} ${holder.lastName || ""}`.trim() ||
+            holder.walletAddress,
+        };
+      }) || [],
+    [holders]
+  );
+
+  // Derive available claim types from credential templates (template names)
+  const { data: templates } = useCredentialTemplates();
+  const availableClaims = useMemo<string[]>(() => {
+    if (!templates || templates.length === 0) {
+      // Fallback list if templates are not loaded yet
+      return [];
+    }
+
+    const names = templates
+      .map((t: any) => t.name)
+      .filter(Boolean)
+      .map((n: string) => n.trim());
+
+    // unique
+    return Array.from(new Set(names));
+  }, [templates]);
 
   const activeRequests = (proofRequests || []).filter(
     (r: any) => r.status === "ACTIVE"
@@ -141,10 +168,15 @@ export function ProofRequestsManager() {
         ? newRequest.selectedHolders
         : undefined;
 
+    // Intersect requested types with available claims derived from templates
+    const requested = newRequest.requestedTypes.filter((t) =>
+      availableClaims.includes(t)
+    );
+
     createProofRequestMutation.mutate({
       title: newRequest.title,
       description: newRequest.description,
-      requestedTypes: newRequest.requestedTypes,
+      requestedTypes: requested,
       ...(newRequest.expiresAt ? { expiresAt: newRequest.expiresAt } : {}),
       ...(targetHolders && targetHolders.length > 0 ? { targetHolders } : {}),
     });
@@ -224,22 +256,32 @@ export function ProofRequestsManager() {
               </div>
               <div>
                 <Label>Required Claims</Label>
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {availableClaims.map((claim) => (
-                    <div key={claim} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={claim}
-                        checked={newRequest.requestedTypes.includes(claim)}
-                        onCheckedChange={(checked) =>
-                          handleClaimToggle(claim, checked as boolean)
-                        }
-                      />
-                      <label htmlFor={claim} className="text-sm cursor-pointer">
-                        {claim}
-                      </label>
-                    </div>
-                  ))}
-                </div>
+                {availableClaims.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {availableClaims.map((claim) => (
+                      <div key={claim} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={claim}
+                          checked={newRequest.requestedTypes.includes(claim)}
+                          onCheckedChange={(checked) =>
+                            handleClaimToggle(claim, checked as boolean)
+                          }
+                        />
+                        <label
+                          htmlFor={claim}
+                          className="text-sm cursor-pointer"
+                        >
+                          {claim}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    No credential templates found. Create a credential template
+                    to enable available claim types for proof requests.
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Targeting</Label>
@@ -273,63 +315,20 @@ export function ProofRequestsManager() {
               {newRequest.targetingMode === "targeted" && (
                 <div>
                   <Label>Select Holders</Label>
-                  <div className="mt-2 max-h-40 overflow-y-auto border rounded-md p-3">
-                    {holdersLoading ? (
-                      <div className="text-sm text-muted-foreground">
-                        Loading holders...
-                      </div>
-                    ) : holders && holders.length > 0 ? (
-                      <div className="space-y-2">
-                        {holders.map((holder: any) => (
-                          <div
-                            key={holder.id}
-                            className="flex items-center space-x-2"
-                          >
-                            <Checkbox
-                              id={`holder-${holder.id}`}
-                              checked={newRequest.selectedHolders.includes(
-                                holder.id
-                              )}
-                              onCheckedChange={(checked) =>
-                                handleHolderToggle(
-                                  holder.id,
-                                  checked as boolean
-                                )
-                              }
-                            />
-                            <label
-                              htmlFor={`holder-${holder.id}`}
-                              className="text-sm cursor-pointer flex-1"
-                            >
-                              <div className="font-medium">
-                                {holder.firstName} {holder.lastName}
-                                {holder.institutionName && (
-                                  <span className="text-muted-foreground ml-1">
-                                    ({holder.institutionName})
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {holder.walletAddress?.slice(0, 8)}...
-                                {holder.walletAddress?.slice(-6)}
-                              </div>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">
-                        No holders found
-                      </div>
-                    )}
+                  <div className="mt-2">
+                    {/* Selected holders as pills */}
+                    <SelectPills
+                      data={holdersData}
+                      value={newRequest.selectedHolders}
+                      onValueChange={(value) =>
+                        setNewRequest((prev) => ({
+                          ...prev,
+                          selectedHolders: value,
+                        }))
+                      }
+                      placeholder="Search holders..."
+                    />
                   </div>
-                  {newRequest.selectedHolders.length > 0 && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      {newRequest.selectedHolders.length} holder
-                      {newRequest.selectedHolders.length !== 1 ? "s" : ""}{" "}
-                      selected
-                    </div>
-                  )}
                 </div>
               )}
               <div className="flex gap-2 pt-4">

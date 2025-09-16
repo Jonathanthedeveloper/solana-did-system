@@ -1,4 +1,5 @@
 import api from "@/lib/axios";
+import { User } from "@/lib/generated/prisma/browser";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useProofRequests() {
@@ -103,7 +104,7 @@ export function useHolders() {
   return useQuery({
     queryKey: ["holders"],
     queryFn: async () => {
-      const response = await api.get("users");
+      const response = await api.get<User[]>("users");
       return response.data;
     },
   });

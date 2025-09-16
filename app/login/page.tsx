@@ -152,13 +152,6 @@ export default function LoginPage() {
               </div>
             ) : (
               <div className="text-center space-y-4">
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-muted-foreground">
-                    Wallet Connected
-                  </span>
-                </div>
-
                 {isAuthenticating || authenticate.isPending ? (
                   <div className="space-y-3">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto" />

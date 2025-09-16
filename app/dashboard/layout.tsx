@@ -1,3 +1,4 @@
+import { AuthGuard } from "@/components/auth-guard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -5,7 +6,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { AuthGuard } from "@/components/auth-guard";
 
 export default async function DashboardLayout({
   children,
@@ -21,6 +21,7 @@ export default async function DashboardLayout({
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
           </div>
+          {/* <WalletModal /> */}
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <AuthGuard>{children}</AuthGuard>

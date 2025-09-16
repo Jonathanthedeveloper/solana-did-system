@@ -1,6 +1,7 @@
 import api from "@/lib/axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { templateSchema, TemplateInput } from "@/lib/validation/template";
+import { CredentialTemplate } from "@/lib/generated/prisma/browser";
 
 export function useCredentialTemplates() {
   return useQuery({
@@ -21,7 +22,10 @@ export function useCreateCredentialTemplate() {
         // surface validation issues to caller
         throw new Error(JSON.stringify(parse.error.issues));
       }
-      const response = await api.post("templates", parse.data);
+      const response = await api.post<CredentialTemplate>(
+        "templates",
+        parse.data
+      );
       return response.data;
     },
     onSuccess: () => {

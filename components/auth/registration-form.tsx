@@ -22,13 +22,13 @@ import { UserRole } from "@/lib/generated/prisma/enums";
 export function RegistrationForm() {
   const [selectedRole, setSelectedRole] = useState<UserRole | "">("");
   const { connected, publicKey, signMessage } = useWallet();
-  const { user } = useAuth();
+  const { user, status } = useAuth();
   const authenticate = useAuthenticateWallet();
   const { toast } = useToast();
   const router = useRouter();
 
   // If user is already authenticated, redirect to dashboard
-  if (user) {
+  if (user && status === "authenticated") {
     router.replace("/dashboard");
     return null;
   }

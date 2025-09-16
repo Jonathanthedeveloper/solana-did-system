@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Key, CreditCard, CheckCircle, Plus, Eye, Shield } from "lucide-react";
+import { Key, CreditCard, CheckCircle, Eye, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCredentials } from "@/features/credentials";
 import { useAvailableProofRequests } from "@/features/proof-requests";
@@ -19,6 +19,7 @@ import { PageSkeleton } from "@/components/loading-skeleton";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Credential, ProofRequest } from "@/lib/types";
 import { UserRole } from "@/lib/generated/prisma/enums";
+import Link from "next/link";
 
 export function HolderDashboard() {
   return (
@@ -112,10 +113,6 @@ function HolderDashboardContent() {
             Manage your decentralized identity and credentials
           </p>
         </div>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Credential
-        </Button>
       </div>
 
       {/* Stats Grid */}
@@ -200,8 +197,12 @@ function HolderDashboardContent() {
                 </p>
               </div>
             )}
-            <Button variant="outline" className="w-full bg-transparent">
-              View All Credentials
+            <Button
+              variant="outline"
+              className="w-full bg-transparent mt-auto"
+              asChild
+            >
+              <Link href="/dashboard/credentials"> View All Credentials</Link>
             </Button>
           </CardContent>
         </Card>
